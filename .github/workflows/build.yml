@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  cli-smoke:
     runs-on: ubuntu-latest
 
     steps:
@@ -22,11 +22,11 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Restore
-        run: dotnet restore PngtoWebp.sln
+      - name: Restore CLI
+        run: dotnet restore src/PngtoWebp.Cli/PngtoWebp.Cli.csproj
 
-      - name: Build
-        run: dotnet build PngtoWebp.sln --configuration Release --no-restore
+      - name: Build CLI
+        run: dotnet build src/PngtoWebp.Cli/PngtoWebp.Cli.csproj --configuration Release --no-restore
 
       - name: Smoke test CLI help
         run: dotnet run --project src/PngtoWebp.Cli/PngtoWebp.Cli.csproj --configuration Release --no-build -- --help
@@ -51,7 +51,6 @@ jobs:
           header += struct.pack('<IHHI', file_size, 0, 0, 54)
           header += struct.pack('<IIIHHIIIIII', 40, width, height, 1, 24, 0, pixel_data_size, 2835, 2835, 0, 0)
 
-          # BMP stores rows bottom-up and pixels in BGR order.
           rows = [
               bytes([0, 0, 255, 0, 255, 0]) + b'\x00\x00',
               bytes([255, 0, 0, 255, 255, 255]) + b'\x00\x00',
@@ -69,3 +68,31 @@ jobs:
                --quality 80
 
           test -s /tmp/pngtowebp-smoke/output/sample.webp
+
+  desktop-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore solution
+        run: dotnet restore PngtoWebp.sln
+
+      - name: Build solution
+        run: dotnet build PngtoWebp.sln --configuration Release --no-restore
+
+      - name: Publish Windows GUI
+        run: dotnet publish src/PngtoWebp.Gui/PngtoWebp.Gui.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true --output publish/win-x64
+
+      - name: Upload Windows GUI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PngtoWebp-Windows-x64
+          path: publish/win-x64/
+          if-no-files-found: error
