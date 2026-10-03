@@ -1,28 +1,47 @@
 # PngtoWebp
 
-Herramienta CLI en **.NET 8** para convertir imágenes **PNG, JPG/JPEG y BMP a WebP**, pensada para optimizar assets para web.
+Aplicación en **.NET 8** para convertir imágenes **PNG, JPG/JPEG y BMP a WebP**, pensada para optimizar assets para web.
 
-El proyecto usa [SkiaSharp](https://github.com/mono/SkiaSharp), un motor gráfico open source con licencia MIT, para decodificar las imágenes y generar WebP sin depender de `System.Drawing`.
+Incluye dos interfaces sobre el mismo motor de conversión:
 
-## Características
+- **GUI WinForms para Windows**: uso visual, selección múltiple y drag & drop, sin escribir comandos.
+- **CLI multiplataforma**: útil para scripts, automatizaciones y procesamiento batch.
 
-- PNG, JPG/JPEG y BMP → WebP.
-- Conversión de un archivo individual o de una carpeta completa.
-- Exploración recursiva opcional.
-- Calidad configurable de 0 a 100.
-- Modo WebP **lossy** (por defecto) o **lossless**.
-- Preserva transparencias cuando el formato de origen las contiene.
-- La recodificación elimina metadata innecesaria del archivo de salida, reduciendo bytes que no son necesarios para servir la imagen en web.
-- Escritura atómica mediante archivo temporal para evitar archivos WebP incompletos.
-- Opción de sobrescritura explícita.
-- Mantiene la estructura de subdirectorios durante conversiones recursivas.
-- Resumen final con cantidad de archivos y ahorro real de espacio.
-- Código de conversión aislado en una librería reutilizable (`PngtoWebp.Core`).
-- Build automático con GitHub Actions.
+El proyecto usa [SkiaSharp](https://github.com/mono/SkiaSharp), motor gráfico open source con licencia MIT, para decodificar imágenes y generar WebP sin depender de `System.Drawing`.
 
-## Requisitos para compilar
+## GUI de Windows
 
-- .NET SDK 8.0 o superior.
+La aplicación visual está en `src/PngtoWebp.Gui`.
+
+### Funciones
+
+- Selección múltiple de PNG, JPG/JPEG y BMP.
+- Drag & drop de archivos sobre la ventana.
+- Conversión automática al agregar archivos, configurable mediante checkbox.
+- Botón manual **Convertir archivos**.
+- Calidad WebP configurable de 0 a 100.
+- WebP lossy o lossless.
+- Opción para sobrescribir archivos existentes.
+- Guardar cada WebP junto al archivo original o elegir una carpeta común de salida.
+- Barra de progreso.
+- Cancelación de una conversión en curso.
+- Estado individual por archivo.
+- Muestra el porcentaje de ahorro conseguido por cada imagen.
+- Evita agregar archivos duplicados a la lista.
+
+### Flujo normal
+
+1. Abrir `PngtoWebp.exe`.
+2. Dejar calidad `80` como punto de partida o elegir otra.
+3. Pulsar **Agregar archivos...** y seleccionar todas las imágenes deseadas.
+4. Con **Convertir automáticamente al agregar archivos** activado, la conversión comienza inmediatamente.
+5. Los `.webp` se guardan junto a cada original por defecto.
+
+También se pueden arrastrar varios archivos directamente sobre la ventana.
+
+## Ejecutar desde Visual Studio
+
+Abrir `PngtoWebp.sln`, establecer `PngtoWebp.Gui` como proyecto de inicio y ejecutar.
 
 ## Compilar
 
@@ -31,77 +50,10 @@ dotnet restore PngtoWebp.sln
 dotnet build PngtoWebp.sln -c Release
 ```
 
-## Uso rápido
+## Publicar la GUI como ejecutable Windows x64
 
 ```bash
-dotnet run --project src/PngtoWebp.Cli -- "foto.png"
-```
-
-El resultado será `foto.webp` en la misma carpeta.
-
-### Convertir una carpeta
-
-```bash
-dotnet run --project src/PngtoWebp.Cli -- "./imagenes"
-```
-
-Cuando la entrada es una carpeta y no se especifica `--output`, los archivos se escriben en una subcarpeta `webp`.
-
-### Convertir recursivamente
-
-```bash
-dotnet run --project src/PngtoWebp.Cli -- "./imagenes" --recursive
-```
-
-La jerarquía de subcarpetas se conserva dentro de la carpeta de salida.
-
-### Calidad 85
-
-```bash
-dotnet run --project src/PngtoWebp.Cli -- "./imagenes" --quality 85 --recursive
-```
-
-### Lossless
-
-Útil principalmente para logos, UI, capturas o imágenes en las que no se quiere pérdida adicional:
-
-```bash
-dotnet run --project src/PngtoWebp.Cli -- "logo.png" --lossless
-```
-
-### Carpeta de salida y sobrescritura
-
-```bash
-dotnet run --project src/PngtoWebp.Cli -- "./imagenes" --output "./imagenes-optimizadas" --recursive --overwrite
-```
-
-## Opciones
-
-| Opción | Descripción |
-|---|---|
-| `-o`, `--output <dir>` | Directorio de salida. |
-| `-q`, `--quality <0-100>` | Calidad WebP. Default: `80`. En lossless controla el esfuerzo de compresión. |
-| `--lossless` | Usa WebP lossless. |
-| `-r`, `--recursive` | Procesa subdirectorios. |
-| `-f`, `--overwrite` | Sobrescribe archivos `.webp` existentes. |
-| `-h`, `--help` | Muestra ayuda. |
-
-## Comportamiento de salida
-
-- **Archivo individual:** si no se especifica `--output`, el `.webp` se crea junto al archivo original.
-- **Carpeta:** si no se especifica `--output`, se crea `<carpeta>/webp`.
-- Si el `.webp` ya existe, se omite de forma segura salvo que se use `--overwrite`.
-- En conversiones recursivas, la estructura relativa de directorios se conserva.
-- Si dos archivos de la misma carpeta tienen el mismo nombre base (por ejemplo `foto.png` y `foto.jpg`), ambos apuntan a `foto.webp`; el segundo se omitirá salvo que se use `--overwrite`.
-
-## Publicar como ejecutable standalone
-
-SkiaSharp utiliza una librería nativa. Al publicar como single-file conviene habilitar la extracción automática de librerías nativas.
-
-### Windows x64
-
-```bash
-dotnet publish src/PngtoWebp.Cli/PngtoWebp.Cli.csproj \
+dotnet publish src/PngtoWebp.Gui/PngtoWebp.Gui.csproj \
   -c Release \
   -r win-x64 \
   --self-contained true \
@@ -110,42 +62,62 @@ dotnet publish src/PngtoWebp.Cli/PngtoWebp.Cli.csproj \
   -o ./publish/win-x64
 ```
 
-### Linux x64
+Esto genera una versión self-contained para Windows, por lo que el usuario final no necesita instalar manualmente el runtime de .NET.
+
+GitHub Actions también publica automáticamente un artifact llamado **PngtoWebp-Windows-x64** en cada build exitoso de `master`.
+
+## CLI
+
+La interfaz de línea de comandos continúa disponible en `src/PngtoWebp.Cli`.
+
+### Archivo individual
 
 ```bash
-dotnet publish src/PngtoWebp.Cli/PngtoWebp.Cli.csproj \
-  -c Release \
-  -r linux-x64 \
-  --self-contained true \
-  -p:PublishSingleFile=true \
-  -p:IncludeNativeLibrariesForSelfExtract=true \
-  -o ./publish/linux-x64
+dotnet run --project src/PngtoWebp.Cli -- "foto.png"
 ```
 
-## Estructura
+### Carpeta completa
+
+```bash
+dotnet run --project src/PngtoWebp.Cli -- "./imagenes" --recursive --quality 85
+```
+
+### Lossless
+
+```bash
+dotnet run --project src/PngtoWebp.Cli -- "logo.png" --lossless
+```
+
+### Opciones CLI
+
+| Opción | Descripción |
+|---|---|
+| `-o`, `--output <dir>` | Directorio de salida. |
+| `-q`, `--quality <0-100>` | Calidad WebP. Default: `80`. |
+| `--lossless` | Usa WebP lossless. |
+| `-r`, `--recursive` | Procesa subdirectorios. |
+| `-f`, `--overwrite` | Sobrescribe archivos `.webp` existentes. |
+| `-h`, `--help` | Muestra ayuda. |
+
+## Arquitectura
 
 ```text
 PngtoWebp/
 ├── src/
 │   ├── PngtoWebp.Core/       # Motor de conversión reutilizable
-│   └── PngtoWebp.Cli/        # Interfaz de línea de comandos
-├── .github/workflows/        # Build y smoke test automáticos
+│   ├── PngtoWebp.Cli/        # Interfaz de línea de comandos
+│   └── PngtoWebp.Gui/        # GUI WinForms para Windows
+├── .github/workflows/        # CI, pruebas y publicación del ejecutable
 ├── PngtoWebp.sln
 └── README.md
 ```
 
-## Arquitectura
-
-`PngtoWebp.Core` no conoce nada de la consola. Recibe una ruta y `ConversionOptions`, realiza la conversión y devuelve `BatchConversionResult`. La CLI solamente interpreta argumentos y presenta resultados.
-
-Esto permite agregar después una interfaz **WinForms, WPF o Avalonia**, una API REST o un worker batch sin duplicar la lógica de conversión.
+`PngtoWebp.Core` contiene toda la lógica de conversión. Tanto la GUI como la CLI consumen ese proyecto, evitando duplicar código o mantener dos implementaciones distintas del encoder.
 
 ## Valores recomendados para web
 
-Como punto de partida:
-
 - **Fotografías:** quality `75-85`, lossy.
 - **Assets con transparencia:** quality `80-90`, lossy; revisar visualmente bordes y sombras.
-- **Logos/UI que no toleran pérdida:** `--lossless`.
+- **Logos/UI que no toleran pérdida:** lossless.
 
-El resultado depende del contenido de cada imagen. La CLI muestra el tamaño original, el tamaño WebP y el porcentaje de ahorro para que la decisión se base en el resultado real.
+El tamaño final depende del contenido de cada imagen. La aplicación visual informa el porcentaje de ahorro por archivo y la CLI informa tamaño original, tamaño WebP y ahorro.
