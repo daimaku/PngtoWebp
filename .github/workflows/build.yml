@@ -30,3 +30,42 @@ jobs:
 
       - name: Smoke test CLI help
         run: dotnet run --project src/PngtoWebp.Cli/PngtoWebp.Cli.csproj --configuration Release --no-build -- --help
+
+      - name: Smoke test BMP to WebP conversion
+        shell: bash
+        run: |
+          mkdir -p /tmp/pngtowebp-smoke/input /tmp/pngtowebp-smoke/output
+          python3 - <<'PY'
+          import struct
+          from pathlib import Path
+
+          path = Path('/tmp/pngtowebp-smoke/input/sample.bmp')
+          width = 2
+          height = 2
+          row_size = (width * 3 + 3) & ~3
+          pixel_data_size = row_size * height
+          file_size = 54 + pixel_data_size
+
+          header = bytearray()
+          header += b'BM'
+          header += struct.pack('<IHHI', file_size, 0, 0, 54)
+          header += struct.pack('<IIIHHIIIIII', 40, width, height, 1, 24, 0, pixel_data_size, 2835, 2835, 0, 0)
+
+          # BMP stores rows bottom-up and pixels in BGR order.
+          rows = [
+              bytes([0, 0, 255, 0, 255, 0]) + b'\x00\x00',
+              bytes([255, 0, 0, 255, 255, 255]) + b'\x00\x00',
+          ]
+
+          path.write_bytes(header + b''.join(rows))
+          PY
+
+          dotnet run \
+            --project src/PngtoWebp.Cli/PngtoWebp.Cli.csproj \
+            --configuration Release \
+            --no-build \
+            -- /tmp/pngtowebp-smoke/input/sample.bmp \
+               --output /tmp/pngtowebp-smoke/output \
+               --quality 80
+
+          test -s /tmp/pngtowebp-smoke/output/sample.webp
