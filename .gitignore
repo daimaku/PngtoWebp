@@ -1,0 +1,23 @@
+## .NET
+bin/
+obj/
+artifacts/
+publish/
+TestResults/
+
+## IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Logs / temporary
+*.log
+*.tmp
