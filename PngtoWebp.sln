@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PngtoWebp.Core", "src\Pngto
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PngtoWebp.Cli", "src\PngtoWebp.Cli\PngtoWebp.Cli.csproj", "{2BBD3108-C732-4A95-B847-523CB89E8B5F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PngtoWebp.Gui", "src\PngtoWebp.Gui\PngtoWebp.Gui.csproj", "{3A7C2758-5AA9-4BE8-9D15-BB9DCD9BC2A1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -20,5 +22,9 @@ Global
 		{2BBD3108-C732-4A95-B847-523CB89E8B5F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2BBD3108-C732-4A95-B847-523CB89E8B5F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2BBD3108-C732-4A95-B847-523CB89E8B5F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3A7C2758-5AA9-4BE8-9D15-BB9DCD9BC2A1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3A7C2758-5AA9-4BE8-9D15-BB9DCD9BC2A1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3A7C2758-5AA9-4BE8-9D15-BB9DCD9BC2A1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3A7C2758-5AA9-4BE8-9D15-BB9DCD9BC2A1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
