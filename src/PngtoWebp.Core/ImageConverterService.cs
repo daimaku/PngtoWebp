@@ -1,6 +1,4 @@
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Webp;
-using SixLabors.ImageSharp.Processing;
+using SkiaSharp;
 
 namespace PngtoWebp.Core;
 
@@ -20,12 +18,13 @@ public sealed class ImageConverterService
     public static bool IsSupported(string path) =>
         SupportedExtensions.Contains(Path.GetExtension(path));
 
-    public async Task<BatchConversionResult> ConvertAsync(
+    public Task<BatchConversionResult> ConvertAsync(
         string inputPath,
         ConversionOptions? options = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
+        cancellationToken.ThrowIfCancellationRequested();
 
         options ??= new ConversionOptions();
         options.Validate();
@@ -41,19 +40,19 @@ public sealed class ImageConverterService
             }
 
             var outputPath = BuildSingleFileOutputPath(fullInputPath, options.OutputDirectory);
-            var result = await ConvertFileAsync(fullInputPath, outputPath, options, cancellationToken);
-            return new BatchConversionResult(new[] { result });
+            var result = ConvertFile(fullInputPath, outputPath, options, cancellationToken);
+            return Task.FromResult(new BatchConversionResult(new[] { result }));
         }
 
         if (Directory.Exists(fullInputPath))
         {
-            return await ConvertDirectoryAsync(fullInputPath, options, cancellationToken);
+            return Task.FromResult(ConvertDirectory(fullInputPath, options, cancellationToken));
         }
 
         throw new FileNotFoundException($"No existe el archivo o directorio de entrada: {fullInputPath}", fullInputPath);
     }
 
-    private async Task<BatchConversionResult> ConvertDirectoryAsync(
+    private static BatchConversionResult ConvertDirectory(
         string inputDirectory,
         ConversionOptions options,
         CancellationToken cancellationToken)
@@ -95,13 +94,13 @@ public sealed class ImageConverterService
                 targetDirectory,
                 $"{Path.GetFileNameWithoutExtension(file)}.webp");
 
-            results.Add(await ConvertFileAsync(file, outputPath, options, cancellationToken));
+            results.Add(ConvertFile(file, outputPath, options, cancellationToken));
         }
 
         return new BatchConversionResult(results);
     }
 
-    private static async Task<ConversionResult> ConvertFileAsync(
+    private static ConversionResult ConvertFile(
         string inputPath,
         string outputPath,
         ConversionOptions options,
@@ -134,22 +133,33 @@ public sealed class ImageConverterService
 
         try
         {
-            using var image = await Image.LoadAsync(inputPath, cancellationToken);
-            image.Mutate(context => context.AutoOrient());
+            cancellationToken.ThrowIfCancellationRequested();
 
-            var encoder = new WebpEncoder
+            using var bitmap = SKBitmap.Decode(inputPath)
+                ?? throw new InvalidDataException($"No se pudo decodificar la imagen '{inputPath}'.");
+            using var pixmap = bitmap.PeekPixels();
+
+            var encoderOptions = new SKWebpEncoderOptions(
+                options.Lossless
+                    ? SKWebpEncoderCompression.Lossless
+                    : SKWebpEncoderCompression.Lossy,
+                options.Quality);
+
+            using (var outputStream = new FileStream(
+                       tempPath,
+                       FileMode.CreateNew,
+                       FileAccess.Write,
+                       FileShare.None))
             {
-                FileFormat = options.Lossless
-                    ? WebpFileFormatType.Lossless
-                    : WebpFileFormatType.Lossy,
-                Quality = options.Quality,
-                Method = (WebpEncodingMethod)options.EncodingMethod,
-                UseAlphaCompression = true,
-                SkipMetadata = options.StripMetadata
-            };
+                if (!SKWebpEncoder.Encode(outputStream, pixmap, encoderOptions))
+                {
+                    throw new InvalidOperationException($"El encoder WebP no pudo procesar '{inputPath}'.");
+                }
 
-            await image.SaveAsync(tempPath, encoder, cancellationToken);
+                outputStream.Flush(flushToDisk: true);
+            }
 
+            cancellationToken.ThrowIfCancellationRequested();
             File.Move(tempPath, outputPath, options.Overwrite);
 
             var outputBytes = new FileInfo(outputPath).Length;
@@ -184,7 +194,7 @@ public sealed class ImageConverterService
                 }
                 catch
                 {
-                    // El archivo temporal se limpiará por el sistema operativo si no pudo eliminarse aquí.
+                    // Si el sistema operativo mantiene un handle abierto, no se oculta el resultado principal.
                 }
             }
         }
