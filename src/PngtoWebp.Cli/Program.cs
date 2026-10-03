@@ -105,7 +105,7 @@ internal static class Program
                     break;
 
                 default:
-                    if (argument.StartsWith('-', StringComparison.Ordinal))
+                    if (argument.StartsWith("-", StringComparison.Ordinal))
                     {
                         Console.Error.WriteLine($"Error: opción desconocida '{argument}'.");
                         Console.Error.WriteLine("Use --help para ver las opciones disponibles.");
