@@ -290,7 +290,7 @@ public sealed class MainForm : Form
             .Cast<ListViewItem>()
             .Select(item => item.Tag as string)
             .Where(path => !string.IsNullOrWhiteSpace(path))
-            .Select(Path.GetFullPath)
+            .Select(path => Path.GetFullPath(path!))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var added = 0;
