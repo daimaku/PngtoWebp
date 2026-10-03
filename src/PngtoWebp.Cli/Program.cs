@@ -90,21 +90,6 @@ internal static class Program
                     options = options with { Quality = quality };
                     break;
 
-                case "--method":
-                    if (!TryReadValue(args, ref index, argument, out var methodText))
-                    {
-                        return null;
-                    }
-
-                    if (!int.TryParse(methodText, out var method) || method is < 0 or > 6)
-                    {
-                        Console.Error.WriteLine("Error: --method debe ser un número entre 0 y 6.");
-                        return null;
-                    }
-
-                    options = options with { EncodingMethod = method };
-                    break;
-
                 case "--lossless":
                     options = options with { Lossless = true };
                     break;
@@ -117,10 +102,6 @@ internal static class Program
                 case "-f":
                 case "--overwrite":
                     options = options with { Overwrite = true };
-                    break;
-
-                case "--keep-metadata":
-                    options = options with { StripMetadata = false };
                     break;
 
                 default:
@@ -251,8 +232,6 @@ internal static class Program
                   --lossless         Genera WebP lossless.
               -r, --recursive        Procesa subdirectorios.
               -f, --overwrite        Sobrescribe WebP existentes.
-                  --keep-metadata    Conserva metadata de la imagen.
-                  --method <0-6>     Esfuerzo del encoder. Default: 4.
               -h, --help             Muestra esta ayuda.
 
             EJEMPLOS
