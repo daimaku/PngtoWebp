@@ -1,0 +1,32 @@
+name: build
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore PngtoWebp.sln
+
+      - name: Build
+        run: dotnet build PngtoWebp.sln --configuration Release --no-restore
+
+      - name: Smoke test CLI help
+        run: dotnet run --project src/PngtoWebp.Cli/PngtoWebp.Cli.csproj --configuration Release --no-build -- --help
