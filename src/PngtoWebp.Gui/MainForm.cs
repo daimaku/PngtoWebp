@@ -14,7 +14,7 @@ public sealed class MainForm : Form
     private readonly Button _cancelButton = new();
     private readonly TextBox _outputTextBox = new();
     private readonly CheckBox _sameFolderCheckBox = new();
-    private readonly CheckBox _autoConvertCheckBox = new();
+    private readonly ComboBox _formatComboBox = new();
     private readonly CheckBox _losslessCheckBox = new();
     private readonly CheckBox _overwriteCheckBox = new();
     private readonly NumericUpDown _qualityNumeric = new();
@@ -26,7 +26,7 @@ public sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "PNG / JPG / BMP to WebP";
+        Text = "Image to WebP / SVG";
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(900, 620);
         Size = new Size(1080, 720);
@@ -83,6 +83,7 @@ public sealed class MainForm : Form
         _filesList.GridLines = true;
         _filesList.HideSelection = false;
         _filesList.MultiSelect = true;
+        _filesList.AllowDrop = true;
         _filesList.Columns.Add("Archivo", 220);
         _filesList.Columns.Add("Carpeta", 340);
         _filesList.Columns.Add("Estado", 180);
@@ -131,41 +132,55 @@ public sealed class MainForm : Form
 
         options.Controls.Add(new Label
         {
-            Text = "Calidad WebP:",
+            Text = "Formato de salida:",
             AutoSize = true,
             Anchor = AnchorStyles.Left,
             Padding = new Padding(0, 8, 6, 0)
         }, 0, 1);
 
-        _qualityNumeric.Minimum = 0;
-        _qualityNumeric.Maximum = 100;
-        _qualityNumeric.Value = 80;
-        _qualityNumeric.Width = 80;
-        _qualityNumeric.Anchor = AnchorStyles.Left;
-        options.Controls.Add(_qualityNumeric, 1, 1);
+        _formatComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+        _formatComboBox.Items.AddRange(["WebP", "SVG"]);
+        _formatComboBox.SelectedIndex = 0;
+        _formatComboBox.Width = 120;
+        _formatComboBox.Anchor = AnchorStyles.Left;
+        options.Controls.Add(_formatComboBox, 1, 1);
 
-        var compressionOptions = new FlowLayoutPanel
+        var webpOptions = new FlowLayoutPanel
         {
             AutoSize = true,
             Dock = DockStyle.Fill,
-            WrapContents = false
+            WrapContents = false,
+            FlowDirection = FlowDirection.LeftToRight
         };
+
+        var qualityLabel = new Label
+        {
+            Text = "Calidad WebP:",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Padding = new Padding(0, 7, 6, 0)
+        };
+
+        _qualityNumeric.Minimum = 0;
+        _qualityNumeric.Maximum = 100;
+        _qualityNumeric.Value = 80;
+        _qualityNumeric.Width = 70;
 
         _losslessCheckBox.Text = "Lossless";
         _losslessCheckBox.AutoSize = true;
-        _overwriteCheckBox.Text = "Sobrescribir existentes";
+        _losslessCheckBox.Padding = new Padding(10, 4, 0, 0);
+
+        webpOptions.Controls.Add(qualityLabel);
+        webpOptions.Controls.Add(_qualityNumeric);
+        webpOptions.Controls.Add(_losslessCheckBox);
+        options.Controls.Add(webpOptions, 2, 1);
+        options.SetColumnSpan(webpOptions, 2);
+
+        _overwriteCheckBox.Text = "Sobrescribir archivos de salida existentes";
         _overwriteCheckBox.AutoSize = true;
-
-        compressionOptions.Controls.Add(_losslessCheckBox);
-        compressionOptions.Controls.Add(_overwriteCheckBox);
-        options.Controls.Add(compressionOptions, 2, 1);
-        options.SetColumnSpan(compressionOptions, 2);
-
-        _autoConvertCheckBox.Text = "Convertir automáticamente al agregar archivos";
-        _autoConvertCheckBox.Checked = true;
-        _autoConvertCheckBox.AutoSize = true;
-        options.Controls.Add(_autoConvertCheckBox, 0, 2);
-        options.SetColumnSpan(_autoConvertCheckBox, 4);
+        _overwriteCheckBox.Padding = new Padding(0, 6, 0, 0);
+        options.Controls.Add(_overwriteCheckBox, 0, 2);
+        options.SetColumnSpan(_overwriteCheckBox, 4);
 
         optionsGroup.Controls.Add(options);
 
@@ -202,7 +217,7 @@ public sealed class MainForm : Form
         bottomPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         bottomPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
 
-        _statusLabel.Text = "Arrastrá imágenes aquí o usá “Agregar archivos...”.";
+        _statusLabel.Text = "Seleccioná o arrastrá imágenes, elegí el formato y presioná Convertir archivos.";
         _statusLabel.AutoSize = true;
         _statusLabel.Anchor = AnchorStyles.Left;
         bottomPanel.Controls.Add(_statusLabel, 0, 0);
@@ -222,19 +237,23 @@ public sealed class MainForm : Form
 
     private void WireEvents()
     {
-        _addFilesButton.Click += async (_, _) => await SelectFilesAsync();
+        _addFilesButton.Click += (_, _) => SelectFiles();
         _removeSelectedButton.Click += (_, _) => RemoveSelectedFiles();
         _clearButton.Click += (_, _) => ClearFiles();
         _browseOutputButton.Click += (_, _) => BrowseOutputDirectory();
         _convertButton.Click += async (_, _) => await StartConversionAsync();
         _cancelButton.Click += (_, _) => _conversionCancellation?.Cancel();
         _sameFolderCheckBox.CheckedChanged += (_, _) => UpdateUiState();
+        _formatComboBox.SelectedIndexChanged += (_, _) => FormatChanged();
         _filesList.SelectedIndexChanged += (_, _) => UpdateUiState();
+
         DragEnter += MainForm_DragEnter;
         DragDrop += MainForm_DragDrop;
+        _filesList.DragEnter += MainForm_DragEnter;
+        _filesList.DragDrop += MainForm_DragDrop;
     }
 
-    private async Task SelectFilesAsync()
+    private void SelectFiles()
     {
         using var dialog = new OpenFileDialog
         {
@@ -251,14 +270,9 @@ public sealed class MainForm : Form
         }
 
         AddFiles(dialog.FileNames);
-
-        if (_autoConvertCheckBox.Checked && _filesList.Items.Count > 0)
-        {
-            await StartConversionAsync();
-        }
     }
 
-    private async void MainForm_DragDrop(object? sender, DragEventArgs e)
+    private void MainForm_DragDrop(object? sender, DragEventArgs e)
     {
         if (_isConverting || e.Data?.GetData(DataFormats.FileDrop) is not string[] paths)
         {
@@ -266,11 +280,6 @@ public sealed class MainForm : Form
         }
 
         AddFiles(paths);
-
-        if (_autoConvertCheckBox.Checked && _filesList.Items.Count > 0)
-        {
-            await StartConversionAsync();
-        }
     }
 
     private void MainForm_DragEnter(object? sender, DragEventArgs e)
@@ -324,7 +333,7 @@ public sealed class MainForm : Form
 
         if (added > 0)
         {
-            _statusLabel.Text = $"{added} archivo(s) agregado(s). Total: {_filesList.Items.Count}.";
+            _statusLabel.Text = $"{added} archivo(s) agregado(s). Elegí el formato y presioná Convertir archivos.";
         }
         else if (ignored > 0)
         {
@@ -358,7 +367,7 @@ public sealed class MainForm : Form
     {
         using var dialog = new FolderBrowserDialog
         {
-            Description = "Seleccionar carpeta donde se guardarán los WebP",
+            Description = "Seleccionar carpeta donde se guardarán los archivos convertidos",
             UseDescriptionForTitle = true,
             ShowNewFolderButton = true
         };
@@ -372,6 +381,27 @@ public sealed class MainForm : Form
         {
             _outputTextBox.Text = dialog.SelectedPath;
         }
+    }
+
+    private void FormatChanged()
+    {
+        if (_isConverting)
+        {
+            return;
+        }
+
+        foreach (ListViewItem item in _filesList.Items)
+        {
+            item.SubItems[2].Text = "Pendiente";
+            item.SubItems[3].Text = string.Empty;
+        }
+
+        if (_filesList.Items.Count > 0)
+        {
+            _statusLabel.Text = $"Formato seleccionado: {GetSelectedFormatDisplayName()}. Presioná Convertir archivos para iniciar.";
+        }
+
+        UpdateUiState();
     }
 
     private async Task StartConversionAsync()
@@ -412,6 +442,8 @@ public sealed class MainForm : Form
             }
         }
 
+        var selectedFormat = GetSelectedFormat();
+
         _isConverting = true;
         _conversionCancellation = new CancellationTokenSource();
         UpdateUiState();
@@ -419,6 +451,7 @@ public sealed class MainForm : Form
         var token = _conversionCancellation.Token;
         var options = new ConversionOptions
         {
+            Format = selectedFormat,
             Quality = (int)_qualityNumeric.Value,
             Lossless = _losslessCheckBox.Checked,
             Overwrite = _overwriteCheckBox.Checked,
@@ -444,7 +477,7 @@ public sealed class MainForm : Form
                     ?? throw new InvalidOperationException("La lista contiene un elemento sin ruta asociada.");
 
                 item.SubItems[2].Text = "Convirtiendo...";
-                _statusLabel.Text = $"Convirtiendo {index + 1} de {_filesList.Items.Count}: {Path.GetFileName(inputPath)}";
+                _statusLabel.Text = $"Convirtiendo {index + 1} de {_filesList.Items.Count} a {GetSelectedFormatDisplayName()}: {Path.GetFileName(inputPath)}";
                 item.EnsureVisible();
 
                 var batch = await Task.Run(
@@ -458,7 +491,9 @@ public sealed class MainForm : Form
                 {
                     case ConversionStatus.Success:
                         successful++;
-                        item.SubItems[2].Text = $"OK · ahorro {result.SavingsPercentage:F1}%";
+                        item.SubItems[2].Text = selectedFormat == OutputFormat.Webp
+                            ? $"OK · ahorro {result.SavingsPercentage:F1}%"
+                            : "OK · SVG generado";
                         break;
 
                     case ConversionStatus.Skipped:
@@ -478,7 +513,7 @@ public sealed class MainForm : Form
                 _progressBar.Value = index + 1;
             }
 
-            _statusLabel.Text = $"Finalizado. Convertidos: {successful} · Omitidos: {skipped} · Errores: {failed}.";
+            _statusLabel.Text = $"Finalizado en {GetSelectedFormatDisplayName()}. Convertidos: {successful} · Omitidos: {skipped} · Errores: {failed}.";
 
             if (failed == 0)
             {
@@ -505,26 +540,35 @@ public sealed class MainForm : Form
         }
         finally
         {
-            _conversionCancellation.Dispose();
+            _conversionCancellation?.Dispose();
             _conversionCancellation = null;
             _isConverting = false;
             UpdateUiState();
         }
     }
 
+    private OutputFormat GetSelectedFormat() =>
+        _formatComboBox.SelectedIndex == 1
+            ? OutputFormat.Svg
+            : OutputFormat.Webp;
+
+    private string GetSelectedFormatDisplayName() =>
+        GetSelectedFormat() == OutputFormat.Svg ? "SVG" : "WebP";
+
     private void UpdateUiState()
     {
         var hasFiles = _filesList.Items.Count > 0;
         var customOutput = !_sameFolderCheckBox.Checked;
+        var isWebp = GetSelectedFormat() == OutputFormat.Webp;
 
         _addFilesButton.Enabled = !_isConverting;
         _removeSelectedButton.Enabled = !_isConverting && _filesList.SelectedItems.Count > 0;
         _clearButton.Enabled = !_isConverting && hasFiles;
         _sameFolderCheckBox.Enabled = !_isConverting;
-        _autoConvertCheckBox.Enabled = !_isConverting;
-        _losslessCheckBox.Enabled = !_isConverting;
+        _formatComboBox.Enabled = !_isConverting;
+        _losslessCheckBox.Enabled = !_isConverting && isWebp;
         _overwriteCheckBox.Enabled = !_isConverting;
-        _qualityNumeric.Enabled = !_isConverting;
+        _qualityNumeric.Enabled = !_isConverting && isWebp;
         _outputTextBox.Enabled = !_isConverting && customOutput;
         _browseOutputButton.Enabled = !_isConverting && customOutput;
         _convertButton.Enabled = !_isConverting && hasFiles;
