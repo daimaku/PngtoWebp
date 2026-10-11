@@ -74,6 +74,21 @@ internal static class Program
                     options = options with { OutputDirectory = outputDirectory };
                     break;
 
+                case "--format":
+                    if (!TryReadValue(args, ref index, argument, out var formatText))
+                    {
+                        return null;
+                    }
+
+                    if (!TryParseOutputFormat(formatText, out var format))
+                    {
+                        Console.Error.WriteLine("Error: --format debe ser 'webp' o 'svg'.");
+                        return null;
+                    }
+
+                    options = options with { Format = format };
+                    break;
+
                 case "-q":
                 case "--quality":
                     if (!TryReadValue(args, ref index, argument, out var qualityText))
@@ -132,6 +147,24 @@ internal static class Program
         return new ParsedArguments(inputPath, options);
     }
 
+    private static bool TryParseOutputFormat(string value, out OutputFormat format)
+    {
+        if (string.Equals(value, "webp", StringComparison.OrdinalIgnoreCase))
+        {
+            format = OutputFormat.Webp;
+            return true;
+        }
+
+        if (string.Equals(value, "svg", StringComparison.OrdinalIgnoreCase))
+        {
+            format = OutputFormat.Svg;
+            return true;
+        }
+
+        format = default;
+        return false;
+    }
+
     private static bool TryReadValue(
         IReadOnlyList<string> args,
         ref int index,
@@ -163,10 +196,13 @@ internal static class Program
             switch (file.Status)
             {
                 case ConversionStatus.Success:
+                    var isSvg = string.Equals(Path.GetExtension(file.OutputPath), ".svg", StringComparison.OrdinalIgnoreCase);
                     Console.WriteLine(
-                        $"[OK]   {file.InputPath} -> {file.OutputPath} " +
-                        $"({FormatBytes(file.SourceBytes)} -> {FormatBytes(file.OutputBytes)}, " +
-                        $"ahorro {file.SavingsPercentage:F1}%)");
+                        isSvg
+                            ? $"[OK]   {file.InputPath} -> {file.OutputPath} ({FormatBytes(file.OutputBytes)})"
+                            : $"[OK]   {file.InputPath} -> {file.OutputPath} " +
+                              $"({FormatBytes(file.SourceBytes)} -> {FormatBytes(file.OutputBytes)}, " +
+                              $"ahorro {file.SavingsPercentage:F1}%)");
                     break;
 
                 case ConversionStatus.Skipped:
@@ -188,13 +224,6 @@ internal static class Program
         Console.WriteLine($"  Convertidos: {batch.Successful}");
         Console.WriteLine($"  Omitidos:    {batch.Skipped}");
         Console.WriteLine($"  Errores:     {batch.Failed}");
-
-        if (batch.Successful > 0)
-        {
-            Console.WriteLine(
-                $"  Tamaño:      {FormatBytes(batch.TotalSourceBytes)} -> " +
-                $"{FormatBytes(batch.TotalOutputBytes)} ({batch.SavingsPercentage:F1}% de ahorro)");
-        }
     }
 
     private static string FormatBytes(long bytes)
@@ -221,24 +250,25 @@ internal static class Program
     {
         Console.WriteLine(
             """
-            PngtoWebp - Conversor PNG/JPG/BMP a WebP para .NET 8
+            PngtoWebp - Conversor PNG/JPG/BMP a WebP o SVG para .NET 8
 
             USO
               pngtowebp <archivo-o-carpeta> [opciones]
 
             OPCIONES
               -o, --output <dir>     Directorio de salida.
+                  --format <formato> Formato: webp o svg. Default: webp.
               -q, --quality <0-100>  Calidad WebP. Default: 80.
                   --lossless         Genera WebP lossless.
               -r, --recursive        Procesa subdirectorios.
-              -f, --overwrite        Sobrescribe WebP existentes.
+              -f, --overwrite        Sobrescribe archivos existentes.
               -h, --help             Muestra esta ayuda.
 
             EJEMPLOS
               pngtowebp "foto.png"
-              pngtowebp "./imagenes" --recursive --quality 85
+              pngtowebp "foto.png" --format svg
+              pngtowebp "./imagenes" --format webp --recursive --quality 85
               pngtowebp "logo.png" --lossless
-              pngtowebp "./imagenes" -o "./webp" -r -f
             """);
     }
 
