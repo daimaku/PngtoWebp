@@ -229,8 +229,8 @@ public sealed class ImageConverterService
         var height = bitmap.Height;
 
         var svg = $"""
-            <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
-              <image width="{width}" height="{height}" preserveAspectRatio="none" href="data:image/png;base64,{base64}" xlink:href="data:image/png;base64,{base64}" />
+            <svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
+              <image width="{width}" height="{height}" preserveAspectRatio="none" href="data:image/png;base64,{base64}" />
             </svg>
             """;
 
