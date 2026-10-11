@@ -1,9 +1,10 @@
+using System.Text;
 using SkiaSharp;
 
 namespace PngtoWebp.Core;
 
 /// <summary>
-/// Servicio reutilizable para convertir PNG, JPG/JPEG y BMP a WebP.
+/// Servicio reutilizable para convertir PNG, JPG/JPEG y BMP a WebP o SVG.
 /// </summary>
 public sealed class ImageConverterService
 {
@@ -39,7 +40,7 @@ public sealed class ImageConverterService
                     $"Formato no soportado: '{Path.GetExtension(fullInputPath)}'. Formatos permitidos: PNG, JPG/JPEG y BMP.");
             }
 
-            var outputPath = BuildSingleFileOutputPath(fullInputPath, options.OutputDirectory);
+            var outputPath = BuildSingleFileOutputPath(fullInputPath, options);
             var result = ConvertFile(fullInputPath, outputPath, options, cancellationToken);
             return Task.FromResult(new BatchConversionResult(new[] { result }));
         }
@@ -58,7 +59,7 @@ public sealed class ImageConverterService
         CancellationToken cancellationToken)
     {
         var outputRoot = string.IsNullOrWhiteSpace(options.OutputDirectory)
-            ? Path.Combine(inputDirectory, "webp")
+            ? Path.Combine(inputDirectory, GetDefaultOutputDirectoryName(options.Format))
             : Path.GetFullPath(options.OutputDirectory);
 
         Directory.CreateDirectory(outputRoot);
@@ -92,7 +93,7 @@ public sealed class ImageConverterService
 
             var outputPath = Path.Combine(
                 targetDirectory,
-                $"{Path.GetFileNameWithoutExtension(file)}.webp");
+                $"{Path.GetFileNameWithoutExtension(file)}{GetOutputExtension(options.Format)}");
 
             results.Add(ConvertFile(file, outputPath, options, cancellationToken));
         }
@@ -116,7 +117,7 @@ public sealed class ImageConverterService
                 ConversionStatus.Skipped,
                 sourceBytes,
                 new FileInfo(outputPath).Length,
-                "El archivo de salida ya existe. Use --overwrite para reemplazarlo.");
+                "El archivo de salida ya existe. Active la opción de sobrescritura para reemplazarlo.");
         }
 
         var outputDirectory = Path.GetDirectoryName(outputPath);
@@ -137,26 +138,19 @@ public sealed class ImageConverterService
 
             using var bitmap = SKBitmap.Decode(inputPath)
                 ?? throw new InvalidDataException($"No se pudo decodificar la imagen '{inputPath}'.");
-            using var pixmap = bitmap.PeekPixels();
 
-            var encoderOptions = new SKWebpEncoderOptions(
-                options.Lossless
-                    ? SKWebpEncoderCompression.Lossless
-                    : SKWebpEncoderCompression.Lossy,
-                options.Quality);
-
-            using (var outputStream = new FileStream(
-                       tempPath,
-                       FileMode.CreateNew,
-                       FileAccess.Write,
-                       FileShare.None))
+            switch (options.Format)
             {
-                if (!SKWebpEncoder.Encode(outputStream, pixmap, encoderOptions))
-                {
-                    throw new InvalidOperationException($"El encoder WebP no pudo procesar '{inputPath}'.");
-                }
+                case OutputFormat.Webp:
+                    WriteWebp(bitmap, tempPath, options);
+                    break;
 
-                outputStream.Flush(flushToDisk: true);
+                case OutputFormat.Svg:
+                    WriteSvg(bitmap, tempPath);
+                    break;
+
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(options.Format), options.Format, "Formato de salida no soportado.");
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -200,19 +194,80 @@ public sealed class ImageConverterService
         }
     }
 
-    private static string BuildSingleFileOutputPath(string inputPath, string? outputDirectory)
+    private static void WriteWebp(SKBitmap bitmap, string tempPath, ConversionOptions options)
     {
-        var targetDirectory = string.IsNullOrWhiteSpace(outputDirectory)
+        using var pixmap = bitmap.PeekPixels();
+
+        var encoderOptions = new SKWebpEncoderOptions(
+            options.Lossless
+                ? SKWebpEncoderCompression.Lossless
+                : SKWebpEncoderCompression.Lossy,
+            options.Quality);
+
+        using var outputStream = new FileStream(
+            tempPath,
+            FileMode.CreateNew,
+            FileAccess.Write,
+            FileShare.None);
+
+        if (!SKWebpEncoder.Encode(outputStream, pixmap, encoderOptions))
+        {
+            throw new InvalidOperationException("El encoder WebP no pudo procesar la imagen.");
+        }
+
+        outputStream.Flush(flushToDisk: true);
+    }
+
+    private static void WriteSvg(SKBitmap bitmap, string tempPath)
+    {
+        using var image = SKImage.FromBitmap(bitmap);
+        using var pngData = image.Encode(SKEncodedImageFormat.Png, 100)
+            ?? throw new InvalidOperationException("No se pudo preparar la imagen raster para incluirla en el SVG.");
+
+        var base64 = Convert.ToBase64String(pngData.ToArray());
+        var width = bitmap.Width;
+        var height = bitmap.Height;
+
+        var svg = $"""
+            <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
+              <image width="{width}" height="{height}" preserveAspectRatio="none" href="data:image/png;base64,{base64}" xlink:href="data:image/png;base64,{base64}" />
+            </svg>
+            """;
+
+        File.WriteAllText(tempPath, svg, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+    }
+
+    private static string BuildSingleFileOutputPath(string inputPath, ConversionOptions options)
+    {
+        var targetDirectory = string.IsNullOrWhiteSpace(options.OutputDirectory)
             ? Path.GetDirectoryName(inputPath)
-            : Path.GetFullPath(outputDirectory);
+            : Path.GetFullPath(options.OutputDirectory);
 
         if (string.IsNullOrWhiteSpace(targetDirectory))
         {
             throw new InvalidOperationException($"No se pudo determinar el directorio de salida para '{inputPath}'.");
         }
 
-        return Path.Combine(targetDirectory, $"{Path.GetFileNameWithoutExtension(inputPath)}.webp");
+        return Path.Combine(
+            targetDirectory,
+            $"{Path.GetFileNameWithoutExtension(inputPath)}{GetOutputExtension(options.Format)}");
     }
+
+    private static string GetOutputExtension(OutputFormat format) =>
+        format switch
+        {
+            OutputFormat.Webp => ".webp",
+            OutputFormat.Svg => ".svg",
+            _ => throw new ArgumentOutOfRangeException(nameof(format), format, "Formato de salida no soportado.")
+        };
+
+    private static string GetDefaultOutputDirectoryName(OutputFormat format) =>
+        format switch
+        {
+            OutputFormat.Webp => "webp",
+            OutputFormat.Svg => "svg",
+            _ => throw new ArgumentOutOfRangeException(nameof(format), format, "Formato de salida no soportado.")
+        };
 
     private static bool IsInsideDirectory(string candidatePath, string directoryPath)
     {
