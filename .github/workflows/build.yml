@@ -31,10 +31,10 @@ jobs:
       - name: Smoke test CLI help
         run: dotnet run --project src/PngtoWebp.Cli/PngtoWebp.Cli.csproj --configuration Release --no-build -- --help
 
-      - name: Smoke test BMP to WebP conversion
+      - name: Create smoke test BMP
         shell: bash
         run: |
-          mkdir -p /tmp/pngtowebp-smoke/input /tmp/pngtowebp-smoke/output
+          mkdir -p /tmp/pngtowebp-smoke/input /tmp/pngtowebp-smoke/webp /tmp/pngtowebp-smoke/svg
           python3 - <<'PY'
           import struct
           from pathlib import Path
@@ -59,15 +59,34 @@ jobs:
           path.write_bytes(header + b''.join(rows))
           PY
 
+      - name: Smoke test BMP to WebP conversion
+        shell: bash
+        run: |
           dotnet run \
             --project src/PngtoWebp.Cli/PngtoWebp.Cli.csproj \
             --configuration Release \
             --no-build \
             -- /tmp/pngtowebp-smoke/input/sample.bmp \
-               --output /tmp/pngtowebp-smoke/output \
+               --format webp \
+               --output /tmp/pngtowebp-smoke/webp \
                --quality 80
 
-          test -s /tmp/pngtowebp-smoke/output/sample.webp
+          test -s /tmp/pngtowebp-smoke/webp/sample.webp
+
+      - name: Smoke test BMP to SVG conversion
+        shell: bash
+        run: |
+          dotnet run \
+            --project src/PngtoWebp.Cli/PngtoWebp.Cli.csproj \
+            --configuration Release \
+            --no-build \
+            -- /tmp/pngtowebp-smoke/input/sample.bmp \
+               --format svg \
+               --output /tmp/pngtowebp-smoke/svg
+
+          test -s /tmp/pngtowebp-smoke/svg/sample.svg
+          grep -q '<svg' /tmp/pngtowebp-smoke/svg/sample.svg
+          grep -q 'data:image/png;base64,' /tmp/pngtowebp-smoke/svg/sample.svg
 
   desktop-windows:
     runs-on: windows-latest
